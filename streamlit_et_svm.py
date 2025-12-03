@@ -37,20 +37,19 @@ img_base64 = get_img_as_base64(img_path)
 # Fallback image if local file is missing
 fallback_url = "https://images.unsplash.com/photo-1625246333195-5848b42814b3?q=80&w=2074"
 
-# Logic: If we found the local image, use base64. If not, use the web URL.
 if img_base64:
     bg_image_css = f"url('data:image/jpeg;base64,{img_base64}')"
 else:
     bg_image_css = f"url('{fallback_url}')"
 
 # ==========================================
-# 2. CUSTOM CSS (Translucent Cards & BG)
+# 2. CUSTOM CSS (Dark Sidebar & Colorful Graph)
 # ==========================================
 st.markdown(f"""
 <style>
     /* Main Background */
     .stApp {{
-        background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), 
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
                     {bg_image_css};
         background-size: cover;
         background-position: center; 
@@ -58,7 +57,41 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
     
-    /* Text Styling */
+    /* SIDEBAR STYLING - Dark BG for White Text */
+    [data-testid="stSidebar"] {{
+        background-color: rgba(15, 23, 42, 0.85); /* Dark Slate Blue */
+        backdrop-filter: blur(10px);
+        border-right: 1px solid rgba(255,255,255,0.1);
+    }}
+    
+    /* Force White Text in Sidebar */
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3 {{
+        color: #ffffff !important;
+    }}
+    
+    [data-testid="stSidebar"] label {{
+        color: #e2e8f0 !important; /* Light Grey/White for inputs */
+        font-weight: 600;
+    }}
+    
+    [data-testid="stSidebar"] .stMarkdown p {{
+        color: #cbd5e1 !important;
+    }}
+    
+    /* TRANSLUCENT CARD STYLE */
+    .css-card {{
+        background: rgba(255, 255, 255, 0.65); /* 65% opacity white */
+        backdrop-filter: blur(12px);
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }}
+    
+    /* Metrics Text */
     [data-testid="stMetricValue"] {{
         font-size: 2.2rem;
         font-weight: 800;
@@ -70,30 +103,6 @@ st.markdown(f"""
         color: #e0f2fe;
         font-weight: 600;
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    }}
-    
-    h1, h2, h3 {{
-        color: #1f2937;
-        font-weight: 800;
-    }}
-    
-    /* TRANSLUCENT CARD STYLE */
-    .css-card {{
-        background: rgba(255, 255, 255, 0.65); /* 0.65 = 65% opacity */
-        backdrop-filter: blur(12px);            /* Glass blur effect */
-        -webkit-backdrop-filter: blur(12px);
-        padding: 20px;
-        border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }}
-
-    /* Sidebar Styling */
-    [data-testid="stSidebar"] {{
-        background-color: rgba(248, 250, 252, 0.90);
-        backdrop-filter: blur(10px);
-        border-right: 1px solid rgba(0,0,0,0.1);
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -177,7 +186,7 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown(f"""
     <div class='css-card'>
-        <h3 style='margin:0'>🌱 Crop Need (ETc)</h3>
+        <h3 style='margin:0; color: #166534;'>🌱 Crop Need (ETc)</h3>
         <div style='font-size: 3.5rem; font-weight: 800; color: #15803d;'>{et_c:.2f}</div>
         <div style='color: #4b5563; font-weight: bold;'>mm / day</div>
         <hr style='border-color: rgba(0,0,0,0.1);'>
@@ -191,7 +200,7 @@ with col1:
 with col2:
     st.markdown(f"""
     <div class='css-card'>
-        <h3 style='margin:0'>💧 Irrigation Volume</h3>
+        <h3 style='margin:0; color: #1e40af;'>💧 Irrigation Volume</h3>
         <div style='font-size: 3.5rem; font-weight: 800; color: #2563eb;'>{total_liters_day:,.0f}</div>
         <div style='color: #4b5563; font-weight: bold;'>Liters / day</div>
         <hr style='border-color: rgba(0,0,0,0.1);'>
@@ -202,23 +211,44 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-# 7-Day Forecast Plot
+# ==========================================
+# 5. COLORFUL PLOTLY GRAPH
+# ==========================================
 st.markdown("<h3 style='color: white; text-shadow: 1px 1px 2px black;'>📅 7-Day Planning Forecast</h3>", unsafe_allow_html=True)
-forecast_vals = [et_c * (1 + np.random.uniform(-0.1, 0.1)) for _ in range(7)]
+
+# Generate synthetic forecast data
+forecast_vals = [et_c * (1 + np.random.uniform(-0.15, 0.15)) for _ in range(7)]
+
 fig = go.Figure(go.Bar(
-    x=[f'Day {i+1}' for i in range(7)], y=forecast_vals,
-    marker_color='rgba(255, 255, 255, 0.8)',
-    text=[f"{v:.1f}" for v in forecast_vals], textposition='auto'
+    x=[f'Day {i+1}' for i in range(7)], 
+    y=forecast_vals,
+    # COLOR CONFIGURATION
+    marker=dict(
+        color=forecast_vals,    # Color varies by value
+        colorscale='Tealgrn',   # Beautiful Green-Teal scale
+        showscale=False
+    ),
+    text=[f"{v:.1f}" for v in forecast_vals], 
+    textposition='auto',
+    textfont=dict(color='white', size=14)
 ))
-fig.update_layout(height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                  font=dict(color='white'), yaxis_title="mm", margin=dict(t=10, b=10))
+
+fig.update_layout(
+    height=300, 
+    paper_bgcolor='rgba(0,0,0,0)', 
+    plot_bgcolor='rgba(0,0,0,0)',
+    font=dict(color='white'),
+    yaxis_title="Water (mm)",
+    margin=dict(t=20, b=20, l=20, r=20),
+    xaxis=dict(showgrid=False),
+    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.2)')
+)
 st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# 5. CSV DOWNLOAD
+# 6. CSV DOWNLOAD
 # ==========================================
 if st.button("📥 Download Report (CSV)", use_container_width=True):
-    # Create a dictionary of data
     data = {
         "Date": [datetime.now().strftime("%Y-%m-%d %H:%M")],
         "Crop Type": [crop_type],
@@ -235,10 +265,7 @@ if st.button("📥 Download Report (CSV)", use_container_width=True):
         "Daily Water (m3)": [round(total_m3_day, 2)]
     }
     
-    # Convert to DataFrame
     df = pd.DataFrame(data)
-    
-    # Convert to CSV string
     csv = df.to_csv(index=False).encode('utf-8')
     
     st.download_button(
