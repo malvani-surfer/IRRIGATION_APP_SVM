@@ -94,13 +94,21 @@ def load_trained_models():
         if os.path.exists('best_et_model.pkl') and os.path.exists('scaler.pkl'):
             svm = joblib.load('best_et_model.pkl')
             scaler = joblib.load('scaler.pkl')
-            return svm, scaler, True, "SVM AI Model"
+            
+            # Extract Training Data Count if available
+            train_count = "Unknown"
+            if hasattr(svm, 'shape_fit_'):
+                train_count = svm.shape_fit_[0]
+            elif hasattr(scaler, 'n_samples_seen_'):
+                train_count = scaler.n_samples_seen_
+                
+            return svm, scaler, True, "SVM AI Model", train_count
         else:
-            return None, None, False, "FAO-56 Equation"
+            return None, None, False, "FAO-56 Equation", 0
     except Exception:
-        return None, None, False, "FAO-56 Equation"
+        return None, None, False, "FAO-56 Equation", 0
 
-svm_model, scaler_model, models_loaded, method = load_trained_models()
+svm_model, scaler_model, models_loaded, method, train_size = load_trained_models()
 
 def calculate_reference_et(t_max, t_min, rh, ws, solar):
     if models_loaded and svm_model is not None:
@@ -203,11 +211,10 @@ st.plotly_chart(fig, use_container_width=True)
 # ==========================================
 if models_loaded:
     with st.expander("🧠 Inside the AI Brain: How the SVM Model Works", expanded=True):
-        st.markdown("""
-        <div style='padding: 10px; background: rgba(255,255,255,0.9); border-radius: 10px; color: #333;'>
+        st.markdown(f"""
+        <div style='padding: 10px; background: rgba(255,255,255,0.9); border-radius: 10px; color: #333; margin-bottom: 20px;'>
             This section visualizes the <strong>Support Vector Machine (SVM)</strong> logic. 
-            The charts below calculate how the model reacts to changes in weather, 
-            revealing the non-linear relationships it learned during training.
+            The model was trained on <strong>{train_size:,.0f}</strong> historical weather data points.
         </div>
         """, unsafe_allow_html=True)
         
@@ -219,7 +226,6 @@ if models_loaded:
             
             with col_a:
                 st.markdown("**Test a Variable:**")
-                # Dropdown to select which variable to flex
                 var_options = {
                     'Max Temp': ('T2M_MAX', 0, 10.0, 50.0),
                     'Min Temp': ('T2M_MIN', 1, 0.0, 40.0),
@@ -231,35 +237,30 @@ if models_loaded:
                 sel_feat_name, sel_feat_idx, sel_min, sel_max = var_options[selected_var_label]
 
             with col_b:
-                # 1. Create a base input array with current user sliders
-                # [t_max, t_min, rh, ws, solar]
                 base_inputs = np.array([t_max, t_min, rh, ws, solar])
-                
-                # 2. Generate range for the selected variable
                 x_range = np.linspace(sel_min, sel_max, 50)
-                
-                # 3. Create a matrix of inputs (50 rows, 5 cols)
-                # Repeat the base row 50 times
                 input_matrix = np.tile(base_inputs, (50, 1))
-                
-                # 4. Overwrite the column of the selected variable with the range
                 input_matrix[:, sel_feat_idx] = x_range
                 
-                # 5. Scale and Predict
                 scaled_matrix = scaler_model.transform(input_matrix)
                 y_pred = svm_model.predict(scaled_matrix)
                 
-                # 6. Plot
                 fig_sense = px.line(
                     x=x_range, y=y_pred, 
-                    labels={'x': selected_var_label, 'y': 'Predicted ET0 (mm/day)'},
-                    title=f"How {selected_var_label} affects ET (while other factors stay constant)"
+                    labels={'x': selected_var_label, 'y': 'Predicted ET0'},
+                    title=f"Effect of {selected_var_label} on ET0"
                 )
-                fig_sense.update_traces(line_color='#2563eb', line_width=4)
-                fig_sense.add_vline(x=base_inputs[sel_feat_idx], line_dash="dash", line_color="red", annotation_text="Current Setting")
+                
+                # DARK MODE PLOT STYLING
+                fig_sense.update_traces(line_color='#22d3ee', line_width=4) # CYAN Line
+                fig_sense.add_vline(x=base_inputs[sel_feat_idx], line_dash="dash", line_color="#fbbf24", annotation_text="Current")
+                
                 fig_sense.update_layout(
-                    paper_bgcolor='rgba(255,255,255,0.9)', 
-                    plot_bgcolor='rgba(240,240,240,0.5)',
+                    paper_bgcolor='rgba(15, 23, 42, 0.9)', # Dark Slate Background
+                    plot_bgcolor='rgba(15, 23, 42, 1)',    # Dark Plot Area
+                    font=dict(color='#e2e8f0'),            # Light Text
+                    xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
                     height=350
                 )
                 st.plotly_chart(fig_sense, use_container_width=True)
@@ -267,28 +268,18 @@ if models_loaded:
         # --- TAB 2: LOCAL IMPORTANCE ---
         with tab2:
             st.markdown("**What is driving TODAY's prediction?** (Perturbation Analysis)")
-            # Calculate local importance by tweaking each input by +5% and seeing effect
             impacts = []
             feature_names = ['Max Temp', 'Min Temp', 'Humidity', 'Wind Speed', 'Solar Rad']
             base_pred = et_0
             
             for i in range(5):
-                # Create a tweaked input
                 tweaked_inputs = np.array([t_max, t_min, rh, ws, solar])
-                
-                # Perturb by a small amount (e.g., +1 unit or +5%)
                 perturbation = tweaked_inputs[i] * 0.05 if tweaked_inputs[i] != 0 else 1.0
                 tweaked_inputs[i] += perturbation
-                
-                # Predict
                 tw_scaled = scaler_model.transform(tweaked_inputs.reshape(1, -1))
                 tw_pred = svm_model.predict(tw_scaled)[0]
-                
-                # Calculate absolute change impact
-                impact = abs(tw_pred - base_pred)
-                impacts.append(impact)
+                impacts.append(abs(tw_pred - base_pred))
 
-            # Normalize to percentage
             total_impact = sum(impacts) if sum(impacts) > 0 else 1
             impact_pct = [(x / total_impact) * 100 for x in impacts]
             
@@ -297,19 +288,19 @@ if models_loaded:
             
             fig_imp = px.bar(
                 df_imp, x='Influence', y='Factor', orientation='h',
-                title="Relative Influence of Factors on Current Prediction",
-                text_auto='.1f'
+                title="Relative Influence (%)", text_auto='.1f'
             )
-            fig_imp.update_traces(marker_color='#0f172a', textfont_color='white')
+            fig_imp.update_traces(marker_color='#38bdf8', textfont_color='black') # Light Blue bars
             fig_imp.update_layout(
-                paper_bgcolor='rgba(255,255,255,0.9)', 
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis_title="Relative Influence (%)"
+                paper_bgcolor='rgba(15, 23, 42, 0.9)', 
+                plot_bgcolor='rgba(15, 23, 42, 1)',
+                font=dict(color='#e2e8f0'),
+                xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
             )
             st.plotly_chart(fig_imp, use_container_width=True)
             
             if hasattr(svm_model, 'support_vectors_'):
-                st.caption(f"ℹ️ Model Complexity: This prediction uses weighted distance from {len(svm_model.support_vectors_)} historical 'Support Vector' days.")
+                st.caption(f"ℹ️ Support Vectors: {len(svm_model.support_vectors_)}")
 
 # ==========================================
 # 6. DOWNLOAD
@@ -322,7 +313,8 @@ if st.button("📥 Download Report (CSV)", use_container_width=True):
         "Crop Coeff (Kc)": [kc_value],
         "Reference ET0 (mm)": [round(et_0, 2)],
         "Crop ETc (mm)": [round(et_c, 2)],
-        "Daily Water (Liters)": [round(total_liters_day, 0)]
+        "Daily Water (Liters)": [round(total_liters_day, 0)],
+        "Training Data Size": [train_size if models_loaded else "N/A"]
     }
     df = pd.DataFrame(data)
     csv = df.to_csv(index=False).encode('utf-8')
