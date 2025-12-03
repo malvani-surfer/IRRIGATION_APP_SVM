@@ -11,21 +11,31 @@ import os
 # Page configuration
 st.set_page_config(
     page_title="ET Prediction System",
-    page_icon="💧",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Custom CSS for background and styling
+   # Custom CSS for background and styling
 st.markdown("""
 <style>
+    /* Main Background with Image and Dark Overlay */
     .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+                    url('https://images.unsplash.com/photo-1625246333195-5848b42814b3?q=80&w=2074&auto=format&fit=crop');
+        background-size: cover;
+        background-position: center; 
+        background-repeat: no-repeat;
+        background-attachment: fixed;
     }
     
+    /* Make metrics and headers readable against the image */
     [data-testid="stMetricValue"] {
         font-size: 2.5rem;
         font-weight: bold;
+        color: white; /* Changed to white for better contrast */
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: #f0fdf4; /* Light green/white for labels */
+        font-weight: 600;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     }
     
     h1, h2, h3 {
@@ -33,17 +43,29 @@ st.markdown("""
         font-weight: 700;
     }
     
+    /* Transparent Sidebar to blend better */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        background-color: rgba(255, 255, 255, 0.95);
+        border-right: 1px solid rgba(0,0,0,0.1);
     }
     
+    /* Styled Buttons */
     .stButton>button {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(90deg, #10b981 0%, #059669 100%);
         color: white;
         border: none;
         border-radius: 10px;
         padding: 10px 20px;
         font-weight: 600;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+    }
+</style>
+""", unsafe_allow_html=True)
     }
     
     .stButton>button:hover {
