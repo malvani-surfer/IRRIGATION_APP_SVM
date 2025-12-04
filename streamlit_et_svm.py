@@ -146,7 +146,12 @@ with st.sidebar:
     field_area = st.number_input("Field Area (Hectares)", 0.1, 1000.0, 1.0, 0.1)
     
     st.divider()
-    st.header("2. Weather")
+    st.header("2. Pump Settings")
+    pump_rate = st.number_input("Pump Flow Rate (Q) [L/hr]", min_value=100, value=2000, step=100)
+    efficiency = st.slider("Irrigation Efficiency (ω)", 0.5, 1.0, 0.90, 0.05)
+
+    st.divider()
+    st.header("3. Weather")
     t_max = st.slider("Max Temp (°C)", 10.0, 50.0, 32.0)
     t_min = st.slider("Min Temp (°C)", 0.0, 35.0, 18.0)
     rh = st.slider("Humidity (%)", 10.0, 100.0, 45.0)
@@ -159,7 +164,14 @@ et_c = et_0 * kc_value
 total_liters_day = (et_c * (field_area * 10000))
 total_m3_day = total_liters_day / 1000
 
+# NEW: Pump Runtime Calculation
+# T = V / (Q * efficiency) -> Result is in Hours
+# Multiply by 60 for Minutes
+runtime_hours = total_liters_day / (pump_rate * efficiency)
+runtime_minutes = runtime_hours * 60
+
 # ----------------- RESULTS -----------------
+# Row 1: Water Volume
 col1, col2 = st.columns(2)
 with col1:
     st.markdown(f"""
@@ -189,8 +201,55 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
+# Row 2: Pump Schedule (NEW)
+st.subheader("🚜 Smart Pump Schedule")
+c1, c2 = st.columns([2, 1])
+
+with c1:
+    st.markdown(f"""
+    <div style='background: linear-gradient(135deg, #ea580c 0%, #f97316 100%); padding: 30px; border-radius: 15px; color: white; box-shadow: 0 4px 15px rgba(234, 88, 12, 0.3);'>
+        <h2 style='color: white; margin-top: 0; margin-bottom: 10px;'>⏱️ Required Pump Runtime</h2>
+        <div style='display: flex; align-items: baseline; gap: 15px;'>
+            <span style='font-size: 4rem; font-weight: 800; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);'>{int(runtime_minutes)}</span>
+            <span style='font-size: 1.5rem; opacity: 0.9; font-weight: 600;'>Minutes</span>
+        </div>
+        <div style='background: rgba(255,255,255,0.2); padding: 12px; border-radius: 8px; margin-top: 20px; font-size: 0.9rem;'>
+            <strong>Formula:</strong> T = V / (Q × ω)<br>
+            Flow Rate (Q): {pump_rate} L/hr • Efficiency (ω): {int(efficiency*100)}%
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with c2:
+    # Logic for advice card
+    if runtime_minutes > 180:
+        status_color = "#fee2e2"
+        status_border = "#ef4444"
+        icon = "⚠️"
+        msg = "High Load: Split into morning & evening shifts."
+    elif runtime_minutes < 45:
+        status_color = "#dcfce7"
+        status_border = "#22c55e"
+        icon = "✅"
+        msg = "Standard Cycle: Single shift sufficient."
+    else:
+        status_color = "#e0f2fe"
+        status_border = "#3b82f6"
+        icon = "ℹ️"
+        msg = "Moderate Load: Monitor soil moisture."
+
+    st.markdown(f"""
+    <div style='background: {status_color}; border: 2px solid {status_border}; padding: 20px; border-radius: 15px; height: 100%;'>
+        <h3 style='color: #1f2937; margin-top:0;'>Total Hours</h3>
+        <div style='font-size: 2.5rem; font-weight: bold; color: #374151;'>{runtime_hours:.1f} <span style='font-size: 1rem;'>hrs</span></div>
+        <hr style='border-color: rgba(0,0,0,0.1); margin: 15px 0;'>
+        <div style='font-size: 1.2rem;'>{icon} <b>Advice:</b></div>
+        <div style='color: #4b5563; margin-top: 5px;'>{msg}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # ----------------- PLOTS -----------------
-st.markdown("<h3 style='color: white; text-shadow: 1px 1px 2px black;'>📅 7-Day Planning Forecast</h3>", unsafe_allow_html=True)
+st.markdown("<br><h3 style='color: white; text-shadow: 1px 1px 2px black;'>📅 7-Day Planning Forecast</h3>", unsafe_allow_html=True)
 forecast_vals = [et_c * (1 + np.random.uniform(-0.15, 0.15)) for _ in range(7)]
 
 fig = go.Figure(go.Bar(
@@ -310,11 +369,12 @@ if st.button("📥 Download Report (CSV)", use_container_width=True):
         "Date": [datetime.now().strftime("%Y-%m-%d %H:%M")],
         "Crop Type": [crop_type],
         "Field Area (Ha)": [field_area],
-        "Crop Coeff (Kc)": [kc_value],
+        "Pump Rate (L/hr)": [pump_rate],
+        "Efficiency": [efficiency],
         "Reference ET0 (mm)": [round(et_0, 2)],
         "Crop ETc (mm)": [round(et_c, 2)],
         "Daily Water (Liters)": [round(total_liters_day, 0)],
-        "Training Data Size": [train_size if models_loaded else "N/A"]
+        "Runtime (Minutes)": [round(runtime_minutes, 0)]
     }
     df = pd.DataFrame(data)
     csv = df.to_csv(index=False).encode('utf-8')
